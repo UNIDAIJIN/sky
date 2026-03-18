@@ -151,7 +151,7 @@
   function spawnCloud(startX) {
     const tplIdx = Math.random() * cloudTemplates.length | 0;
     const tpl = cloudTemplates[tplIdx];
-    const speed = 0.15 + Math.random() * 0.25;
+    const speed = 0.45 + Math.random() * 0.35;
     const y = 8 + Math.random() * (H * 0.55) | 0;
     return {
       x: startX,
@@ -189,10 +189,6 @@
 
     // 空を描く
     drawSky();
-
-    // 太陽
-    const sunBob = Math.sin(frame * 0.02) * 1 | 0;
-    drawSun(W - 38, 8 + sunBob);
 
     // 雲を動かして描く
     for (let i = clouds.length - 1; i >= 0; i--) {
