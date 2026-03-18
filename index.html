@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ドット絵の青空と雲</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+  </style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<script>
+  const SCALE = 3;
+  const W = 200;
+  const H = 120;
+
+  const canvas = document.getElementById('sky');
+  canvas.width = W * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // ---- カラーパレット ----
+  const SKY_TOP    = '#3a7bd5';
+  const SKY_MID    = '#5fa8e8';
+  const SKY_BTM    = '#a8d8f8';
+  const CLOUD_L    = '#ffffff';
+  const CLOUD_M    = '#e8f4ff';
+  const CLOUD_S    = '#cce8ff';
+  const SUN_CORE   = '#fff7a0';
+  const SUN_GLOW   = '#ffe066';
+
+  // ---- 雲のドット形状テンプレート (ピクセル単位) ----
+  // 各雲は複数の「塊」(x,y,w,h) で構成
+  const cloudTemplates = [
+    // 大きな雲
+    {
+      width: 42, height: 16,
+      blocks: [
+        { x:8,  y:10, w:26, h:6,  c: CLOUD_M },
+        { x:4,  y:6,  w:34, h:8,  c: CLOUD_M },
+        { x:10, y:2,  w:14, h:6,  c: CLOUD_L },
+        { x:20, y:4,  w:12, h:6,  c: CLOUD_L },
+        { x:2,  y:8,  w:10, h:6,  c: CLOUD_L },
+        { x:30, y:6,  w:10, h:6,  c: CLOUD_L },
+      ]
+    },
+    // 中くらいの雲
+    {
+      width: 30, height: 12,
+      blocks: [
+        { x:4,  y:8,  w:22, h:4,  c: CLOUD_M },
+        { x:2,  y:4,  w:26, h:6,  c: CLOUD_M },
+        { x:6,  y:0,  w:10, h:6,  c: CLOUD_L },
+        { x:14, y:2,  w:10, h:6,  c: CLOUD_L },
+        { x:0,  y:6,  w:8,  h:4,  c: CLOUD_S },
+        { x:22, y:4,  w:8,  h:4,  c: CLOUD_S },
+      ]
+    },
+    // 小さな雲
+    {
+      width: 20, height: 10,
+      blocks: [
+        { x:2,  y:6,  w:16, h:4,  c: CLOUD_M },
+        { x:4,  y:2,  w:12, h:6,  c: CLOUD_L },
+        { x:0,  y:4,  w:6,  h:4,  c: CLOUD_S },
+        { x:14, y:4,  w:6,  h:4,  c: CLOUD_S },
+        { x:6,  y:0,  w:8,  h:4,  c: CLOUD_L },
+      ]
+    },
+    // 細長い雲
+    {
+      width: 36, height: 8,
+      blocks: [
+        { x:0,  y:4,  w:36, h:4,  c: CLOUD_M },
+        { x:4,  y:0,  w:28, h:6,  c: CLOUD_M },
+        { x:8,  y:0,  w:8,  h:4,  c: CLOUD_L },
+        { x:20, y:0,  w:8,  h:4,  c: CLOUD_L },
+      ]
+    },
+  ];
+
+  // ---- 太陽の形状 ----
+  function drawSun(px, py) {
+    // 光芒
+    const rays = [
+      {x:8, y:0, w:2, h:3}, {x:8, y:15, w:2, h:3},
+      {x:0, y:8, w:3, h:2}, {x:15, y:8, w:3, h:2},
+      {x:2, y:2, w:2, h:2}, {x:14, y:2, w:2, h:2},
+      {x:2, y:14, w:2, h:2}, {x:14, y:14, w:2, h:2},
+    ];
+    ctx.fillStyle = SUN_GLOW;
+    for (const r of rays) {
+      fillRect(px + r.x, py + r.y, r.w, r.h);
+    }
+    // コア
+    const core = [
+      {x:5, y:3, w:8, h:12},
+      {x:3, y:5, w:12, h:8},
+      {x:4, y:4, w:10, h:10},
+    ];
+    ctx.fillStyle = SUN_CORE;
+    for (const c of core) {
+      fillRect(px + c.x, py + c.y, c.w, c.h);
+    }
+  }
+
+  // ---- ピクセル単位でスケール付き塗りつぶし ----
+  function fillRect(px, py, pw, ph) {
+    ctx.fillRect(px * SCALE, py * SCALE, pw * SCALE, ph * SCALE);
+  }
+
+  // ---- 空のグラデーション描画 ----
+  function drawSky() {
+    // 上から下に色を変える（ピクセル行ごと）
+    for (let y = 0; y < H; y++) {
+      const t = y / H;
+      // RGB線形補間: TOP -> MID -> BTM
+      let r, g, b;
+      if (t < 0.5) {
+        const s = t / 0.5;
+        r = lerp(0x3a, 0x5f, s);
+        g = lerp(0x7b, 0xa8, s);
+        b = lerp(0xd5, 0xe8, s);
+      } else {
+        const s = (t - 0.5) / 0.5;
+        r = lerp(0x5f, 0xa8, s);
+        g = lerp(0xa8, 0xd8, s);
+        b = lerp(0xe8, 0xf8, s);
+      }
+      ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+      ctx.fillRect(0, y * SCALE, W * SCALE, SCALE);
+    }
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  // ---- 雲オブジェクトの生成 ----
+  function spawnCloud(startX) {
+    const tplIdx = Math.random() * cloudTemplates.length | 0;
+    const tpl = cloudTemplates[tplIdx];
+    const speed = 0.15 + Math.random() * 0.25;
+    const y = 8 + Math.random() * (H * 0.55) | 0;
+    return {
+      x: startX,
+      y,
+      speed,
+      tpl,
+      opacity: 0.85 + Math.random() * 0.15,
+    };
+  }
+
+  // ---- 初期雲の配置 ----
+  const clouds = [];
+  for (let i = 0; i < 8; i++) {
+    const c = spawnCloud(Math.random() * (W + 40) - 20);
+    clouds.push(c);
+  }
+
+  // ---- 雲を描く ----
+  function drawCloud(cloud) {
+    const tpl = cloud.tpl;
+    const px = cloud.x | 0;
+    const py = cloud.y | 0;
+    ctx.globalAlpha = cloud.opacity;
+    for (const b of tpl.blocks) {
+      ctx.fillStyle = b.c;
+      fillRect(px + b.x, py + b.y, b.w, b.h);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- アニメーションループ ----
+  let frame = 0;
+  function animate() {
+    frame++;
+
+    // 空を描く
+    drawSky();
+
+    // 太陽
+    const sunBob = Math.sin(frame * 0.02) * 1 | 0;
+    drawSun(W - 38, 8 + sunBob);
+
+    // 雲を動かして描く
+    for (let i = clouds.length - 1; i >= 0; i--) {
+      const c = clouds[i];
+      c.x -= c.speed;
+
+      // 画面外に出たら右から再出現
+      if (c.x + c.tpl.width < -5) {
+        clouds[i] = spawnCloud(W + 2);
+      }
+
+      drawCloud(c);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+</script>
+</body>
+</html>
