@@ -51,8 +51,17 @@ let charFrame = 0;
 let charFrameTimer = 0;
 let npcSpawnTimer = 120;
 
+const IRIS_DURATION = 700;
+const BD_WAIT = 8000;
+const BD_FADE_DURATION = 4000;
+let irisStartedAt = 0;
+let whiteStartedAt = 0;
+
 const groundImg = new Image();
 groundImg.src = 'ground.png';
+
+const bdImg = new Image();
+bdImg.src = 'BD.png';
 
 const charImgs = [1, 2, 3, 4].map(n => {
   const img = new Image();
@@ -250,12 +259,86 @@ function drawCharacters() {
   });
 }
 
-function loop() {
-  drawSky();
-  drawClouds();
-  drawGround();
-  drawNpcs();
-  drawCharacters();
+function startWhiteIris() {
+  if (irisStartedAt) return;
+  irisStartedAt = performance.now();
+}
+
+canvas.addEventListener('click', startWhiteIris);
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' || event.repeat) return;
+  event.preventDefault();
+  startWhiteIris();
+});
+
+function easeInCubic(t) {
+  return t * t * t;
+}
+
+function drawWhiteIris(now) {
+  if (!irisStartedAt) return;
+
+  const progress = Math.min(1, (now - irisStartedAt) / IRIS_DURATION);
+  const cW = CHAR_W * CHAR_SCALE * 2;
+  const cH = CHAR_H * CHAR_SCALE * 2;
+  const startX = 140;
+  const centerX = startX + (cW * 4 + 12 * 3) / 2;
+  const centerY = H - 40 * GSCALE - cH / 2 + 200;
+  const maxRadius = Math.hypot(
+    Math.max(centerX, W - centerX),
+    Math.max(centerY, H - centerY)
+  ) + 4;
+  const radius = maxRadius * (1 - easeInCubic(progress));
+
+  ctx.save();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.arc(centerX, centerY, Math.max(0, radius), 0, Math.PI * 2, true);
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  if (progress >= 1 && !whiteStartedAt) whiteStartedAt = now;
+}
+
+function drawWhiteScreen(now) {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+
+  const fadeStartedAt = whiteStartedAt + BD_WAIT;
+  if (now < fadeStartedAt || !bdImg.complete || !bdImg.naturalWidth) return;
+
+  const opacity = Math.min(1, (now - fadeStartedAt) / BD_FADE_DURATION);
+  const scale = Math.min(W / bdImg.naturalWidth, H / bdImg.naturalHeight);
+  const drawWidth = bdImg.naturalWidth * scale;
+  const drawHeight = bdImg.naturalHeight * scale;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.globalAlpha = opacity;
+  ctx.drawImage(
+    bdImg,
+    (W - drawWidth) / 2,
+    (H - drawHeight) / 2,
+    drawWidth,
+    drawHeight
+  );
+  ctx.globalAlpha = 1;
+}
+
+function loop(now) {
+  if (whiteStartedAt) {
+    drawWhiteScreen(now);
+  } else {
+    drawSky();
+    drawClouds();
+    drawGround();
+    drawNpcs();
+    drawCharacters();
+    drawWhiteIris(now);
+  }
+
   requestAnimationFrame(loop);
 }
 
